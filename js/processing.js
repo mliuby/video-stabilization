@@ -4,6 +4,10 @@ var outputDuration = 0; // The duration of the output video
 var outputFramesBuffer = []; // The frames buffer for the output video
 var currentFrame = 0; // The current frame being processed
 var completedFrames = 0; // The number of completed frames
+var num_blocks=5;
+var num_steps=3;
+var if_copy=false;
+var if_display=false;
 
 // This function starts the processing of an individual frame.
 function processFrame() {
@@ -294,8 +298,25 @@ var effects = {
             }
             finishFrame();
         }    
+    },
+    stabilization:{
+        setup: function() {
+            outputDuration=input1FramesBuffer.length;
+            num_blocks=parseInt($("#stabilization-blocks").val());
+            num_steps=parseInt($("#stabilization-smoothen-steps").val());
+            if_copy=$("#copy").is(":checked");
+            if_display=$("#motion_vector").is(":checked");
+            console.log(num_blocks,num_steps,if_copy,if_display);
+            
+        },
+        process: function(idx) {
+            outputFramesBuffer[idx]=input1FramesBuffer[idx];
+            finishFrame();
+        }  
+
     }
 }
+
 // Handler for the "Apply" button click event
 function applyEffect(e) {
     $("#progress-modal").modal("show");
@@ -317,6 +338,9 @@ function applyEffect(e) {
             break;
         case "crossFade":
             currentEffect = effects.crossFade;
+            break;
+        case "stabilization":
+            currentEffect= effects.stabilization;
             break;
         default:
             // Do nothing
