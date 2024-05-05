@@ -58,6 +58,7 @@ function finishVectors() {
         }
     }
     else {
+        console.log(motionVectors[i]);
         var num_steps=parseInt($("#stabilization-smoothen-steps").val());
         for (var i=1; i<motionVectors.length; i++){ // global path
             motionVectors[i].x+=motionVectors[i-1].x;
@@ -78,13 +79,12 @@ function finishVectors() {
             var average_y = sum_y / (end - start + 1);
             smoothened_vectors[i]={x:average_x, y:average_y};
         }
-        console.log(motionVectors.length)
-        console.log(smoothened_vectors.length)
         for (var i=0; i<motionVectors.length; ++i){
-            motionVectors[i].x=smoothened_vectors[i].x-motionVectors[i].x;
-            motionVectors[i].y=smoothened_vectors[i].y-motionVectors[i].y;
+            motionVectors[i].x=parseInt(smoothened_vectors[i].x-motionVectors[i].x);
+            motionVectors[i].y=parseInt(smoothened_vectors[i].y-motionVectors[i].y);
         }
-
+        console.log(smoothened_vectors[i]);
+        console.log(motionVectors[i]);
         currentFrame = 0;
         completedFrames = 0;
         processFrame();
@@ -395,7 +395,7 @@ var effects = {
             }
             else{
                 var blockSize=parseInt($("#stabilization-blocks").val());        
-                var searchAreaSize = 10;
+                var searchAreaSize = 30;
                 var stride = 2;         
 
                 var w = $("#input-video-1").get(0).videoWidth;
@@ -435,61 +435,44 @@ var effects = {
             var if_display=$("#motion_vector").is(":checked");
             var w = $("#input-video-1").get(0).videoWidth;
             var h = $("#input-video-1").get(0).videoHeight;
-            var canvas = getCanvas(w, h);
-            var ctx = canvas.getContext('2d', { willReadFrequently: true });
+            var canvas1 = getCanvas(w, h);
+            var canvas2 = getCanvas(w, h);
+            var ctx1 = canvas1.getContext('2d', { willReadFrequently: true });
+            var ctx2 = canvas2.getContext('2d', { willReadFrequently: true });
             var dx = motionVectors[idx].x;
             var dy = motionVectors[idx].y;
             if (idx==0){
                 outputFramesBuffer[0]=input1FramesBuffer[0];
                 finishFrame();
             }
-            else{
+            else if(if_copy){
                 var img_prev = new Image();
                 var img_cur = new Image();
                 
                 img_prev.onload = function () {
-                  ctx.drawImage(img_prev, 0, 0);
-                  var imageData_prev = ctx.getImageData(0, 0, w, h);
+                    ctx1.drawImage(img_prev, 0, 0);
+                    img_cur.onload = function () {
+                        ctx2.drawImage(img_prev, 0, 0);
+                        var imageData_prev = ctx2.getImageData(0, 0, w, h);
+                        ctx1.putImageData(imageData_prev, -dx, -dy);
+                        outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
+                        finishFrame();
+                    };
+                    img_cur.src = input1FramesBuffer[idx];
+                }
+                img_prev.src = input1FramesBuffer[idx-1];
                 
-                  img_cur.onload = function () {
-                    ctx.drawImage(img_cur, 0, 0);
-                    var imageData_cur = ctx.getImageData(0, 0, w, h);
-                    var imageData_shifted = ctx.createImageData(w, h);
-                
-                    for (let y = 0; y < h; y++) {
-                      for (let x = 0; x < w; x++) {
-                        var destIndex = (y * w + x) * 4;
-                        var srcX = x - dx;
-                        var srcY = y - dy;
-                
-                        if (srcX >= 0 && srcX < w && srcY >= 0 && srcY < h) {
-                          var srcIndex = (srcY * w + srcX) * 4;
-                
-                          for (let i = 0; i < 4; i++) {
-                            imageData_shifted.data[destIndex + i] = imageData_cur.data[srcIndex + i];
-                          }
-                        } else if (if_copy) {
-                          for (let i = 0; i < 4; i++) {
-                            imageData_shifted.data[destIndex + i] = imageData_prev.data[destIndex + i];
-                          }
-                        } else {
-                          imageData_shifted.data[destIndex] = 0;
-                          imageData_shifted.data[destIndex + 1] = 0;
-                          imageData_shifted.data[destIndex + 2] = 0;
-                          imageData_shifted.data[destIndex + 3] = 255;
-                        }
-                      }
-                    }
-                
-                    ctx.putImageData(imageData_shifted, 0, 0);
-                    outputFramesBuffer[idx] = canvas.toDataURL("image/webp");
+            }
+            else{        
+                var img = new Image();
+                img.onload = function() {
+                    ctx2.drawImage(img, 0, 0);
+                    var img_data = ctx2.getImageData(0, 0, w, h);
+                    ctx1.putImageData(img_data, -dx, -dy);
+                    outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
                     finishFrame();
-                  };
-                
-                  img_cur.src = input1FramesBuffer[idx];
                 };
-                
-                img_prev.src = input1FramesBuffer[idx - 1];          
+                img.src = input1FramesBuffer[idx];          
             }
         }
 
