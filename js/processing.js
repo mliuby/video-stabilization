@@ -58,12 +58,13 @@ function finishVectors() {
         }
     }
     else {
-        console.log(motionVectors[i]);
+        
         var num_steps=parseInt($("#stabilization-smoothen-steps").val());
         for (var i=1; i<motionVectors.length; i++){ // global path
             motionVectors[i].x+=motionVectors[i-1].x;
             motionVectors[i].y+=motionVectors[i-1].y;
         }
+        console.log(motionVectors);
 
         for (let i = 0; i < motionVectors.length; i++) { // smoothen
             const start = Math.max(0, i - Math.floor(num_steps / 2));
@@ -83,8 +84,8 @@ function finishVectors() {
             motionVectors[i].x=parseInt(smoothened_vectors[i].x-motionVectors[i].x);
             motionVectors[i].y=parseInt(smoothened_vectors[i].y-motionVectors[i].y);
         }
-        console.log(smoothened_vectors[i]);
-        console.log(motionVectors[i]);
+        console.log(smoothened_vectors);
+        console.log(motionVectors);
         currentFrame = 0;
         completedFrames = 0;
         processFrame();
@@ -395,8 +396,8 @@ var effects = {
             }
             else{
                 var blockSize=parseInt($("#stabilization-blocks").val());        
-                var searchAreaSize = 30;
-                var stride = 2;         
+                var searchAreaSize = 50;
+                var stride = parseInt(searchAreaSize/10);         
 
                 var w = $("#input-video-1").get(0).videoWidth;
                 var h = $("#input-video-1").get(0).videoHeight;
