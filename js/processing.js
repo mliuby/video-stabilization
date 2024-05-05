@@ -4,10 +4,6 @@ var outputDuration = 0; // The duration of the output video
 var outputFramesBuffer = []; // The frames buffer for the output video
 var currentFrame = 0; // The current frame being processed
 var completedFrames = 0; // The number of completed frames
-var num_blocks=5;
-var num_steps=3;
-var if_copy=false;
-var if_display=false;
 var motionVectors = [];
 
 // This function starts the processing of an individual frame.
@@ -51,7 +47,7 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
         for (var y = 0; y + blockSize < h; y += blockSize) {
             for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
                 for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
-                    var sum = Infinity;
+                    var sum = 0;
                     if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
                         continue;
                     for (var bx = 0; bx < blockSize; bx++) {
@@ -70,6 +66,8 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
             }
         }
     }
+    console.log(motionVector);
+    
     return motionVector;
 }
 
@@ -353,7 +351,7 @@ var effects = {
             var blockSize=parseInt($("#stabilization-blocks").val());
             var num_steps=parseInt($("#stabilization-smoothen-steps").val());
             var searchAreaSize = 10;
-            var stride = 3;
+            var stride = 2;
             var smoothened_vectors = []
 
             var w = $("#input-video-1").get(0).videoWidth;
@@ -364,20 +362,39 @@ var effects = {
             var img_search = new Image();
 
             motionVectors[0]={ x: 0, y: 0 };  // get motion vector
-            for (var i=0; i<outputDuration-1; ++i){
-                img_ref.onload = function() {
-                    ctx.drawImage(img_ref, 0, 0);
-                    var imageData_ref= ctx.getImageData(0, 0, w, h);
-
-                    img_search.onload = function() {
-                        ctx.drawImage(img_search, 0, 0);
-                        var imageData_search = ctx.getImageData(0, 0, w, h);
-                        motionVectors[i+1]=motionEstimation(imageData_ref, imageData_search, searchAreaSize, blockSize, stride, w, h);
-                    };
-                    img_search.src = input1FramesBuffer[i+1]; 
-                };
-                img_ref.src = input1FramesBuffer[i];       
-            }
+ 
+            async function processFrames() {
+                for (var i = 0; i < outputDuration - 1; ++i) {
+                    await new Promise((resolve) => {
+                        img_ref.onload = function () {
+                            ctx.drawImage(img_ref, 0, 0);
+                            var imageData_ref = ctx.getImageData(0, 0, w, h);
+              
+                            img_search.onload = function () {
+                                ctx.drawImage(img_search, 0, 0);
+                                var imageData_search = ctx.getImageData(0, 0, w, h);
+                                console.log("before motionEstimation is OK", i);
+                                motionVectors[i + 1] = motionEstimation(
+                                    imageData_ref,
+                                    imageData_search,
+                                    searchAreaSize,
+                                    blockSize,
+                                    stride,
+                                    w,
+                                    h
+                                );
+                                console.log(motionVectors[i + 1]);
+                                console.log("motionEstimation is OK", i);
+                                resolve(); // Resolve the promise to indicate completion
+                            };
+                            img_search.src = input1FramesBuffer[i + 1];
+                        };
+                        img_ref.src = input1FramesBuffer[i];
+                    });
+                }
+            }          
+            processFrames();
+            console.log("15", motionVectors[15]);
 
             for (var i=1; i<motionVectors.length; i++){ // global path
                 motionVectors[i].x+=motionVectors[i-1].x;
@@ -487,7 +504,6 @@ function applyEffect(e) {
             break;
         case "stabilization":
             currentEffect= effects.stabilization;
-            motionVectors = currentEffect.getmotionVectors();
             break;
         default:
             // Do nothing
@@ -497,7 +513,9 @@ function applyEffect(e) {
 
     // Set up the effect
     currentEffect.setup();
-
+    if(selectedEffect=="stabilization"){
+        motionVectors = currentEffect.getmotionVectors();
+    }    
     // Start processing the frames
     currentFrame = 0;
     completedFrames = 0;
