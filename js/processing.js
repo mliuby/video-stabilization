@@ -58,7 +58,7 @@ function finishVectors() {
         }
     }
     else {
-        
+        console.log(motionVectors)
         var num_steps=parseInt($("#stabilization-smoothen-steps").val());
         for (var i=1; i<motionVectors.length; i++){ // global path
             motionVectors[i].x+=motionVectors[i-1].x;
@@ -94,23 +94,27 @@ function finishVectors() {
 
 
 // track motion vectors  between frames
-function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize, stride, h, w) {
+function motionEstimation(referenceFrame, searchFrame, searchAreaSize, blockSize, stride, w, h) {
     let motionVector = { x: 0, y: 0 };
     let min = Infinity;
+    var stride2 = parseInt(blockSize/5)+1
     for (var x = 0; x + blockSize < w; x += blockSize) {
         for (var y = 0; y + blockSize < h; y += blockSize) {
             for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
                 for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
                     var sum = 0;
-                    if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
+                    var count = 0;
+                    if (x + i < 0 || x + i + blockSize >= w || y + j < 0 || y + j + blockSize >= h)
                         continue;
-                    for (var bx = 0; bx < blockSize; bx++) {
-                        for (var by = 0; by < blockSize; by++) {
-                            var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
-                            var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
+                    for (var bx = 0; bx < blockSize; bx+=stride2) {
+                        for (var by = 0; by < blockSize; by+=stride2) {
+                            var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, w, h);
+                            var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, w, h);
                             sum += Math.pow(referencePixel - searchPixel, 2);
+                            count++;
                         }
                     }
+                    sum/=count;
                     if (sum < min) {
                         min = sum;
                         motionVector.x = i;
@@ -123,7 +127,7 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
     return motionVector;
 }
 
-function getPixelValue(imageData, x, y, h, w) {
+function getPixelValue(imageData, x, y, w, h) {
     var numChannels = 4; // Assuming RGB color model
     var index = (y * w + x) * numChannels;
     var R = imageData.data[index];
@@ -469,7 +473,7 @@ var effects = {
                 img.onload = function() {
                     ctx2.drawImage(img, 0, 0);
                     var img_data = ctx2.getImageData(0, 0, w, h);
-                    ctx1.putImageData(img_data, -dx, -dy);
+                    ctx1.putImageData(img_data, dx, dy);
                     outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
                     finishFrame();
                 };
