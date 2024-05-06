@@ -8,6 +8,10 @@ var current = 0; // The current frame when processing motion vectors
 var completed = 0; 
 var motionVectors = [];
 var smoothened_vectors = [];
+var new_left=0;
+var new_right=0;
+var new_top=0;
+var new_bottom=0;
 
 function processFrame() {
     if (currentFrame < outputDuration) {
@@ -82,9 +86,15 @@ function finishVectors() {
         for (var i=0; i<motionVectors.length; ++i){
             motionVectors[i].x=parseInt(smoothened_vectors[i].x-motionVectors[i].x);
             motionVectors[i].y=parseInt(smoothened_vectors[i].y-motionVectors[i].y);
+            new_right=(motionVectors[i].x<0 && motionVectors[i].x<new_right)?motionVectors[i].x:new_right;
+            new_left=(motionVectors[i].x>0 && motionVectors[i].x>new_left)?motionVectors[i].x:new_left;
+            new_top=(motionVectors[i].y>0 && motionVectors[i].y>new_top)?motionVectors[i].y:new_top;
+            new_bottom=(motionVectors[i].y<0 && motionVectors[i].y<new_bottom)?motionVectors[i].y:new_bottom;
+
         }
         // console.log(smoothened_vectors);
-        // console.log(motionVectors);
+        // console.log(motionVectors);\
+        // console.log(new_left,new_right,new_bottom,new_top)
         currentFrame = 0;
         completedFrames = 0;
         processFrame();
@@ -398,7 +408,7 @@ var effects = {
             }
             else{
                 var blockSize=parseInt($("#stabilization-blocks").val());       
-                var searchAreaSize = 100;
+                var searchAreaSize = 50;
                 var stride = 5;         
 
                 var w = $("#input-video-1").get(0).videoWidth;
@@ -427,6 +437,7 @@ var effects = {
         process: function(idx) {
             // Use a canvas to store frame content
             var if_copy=$("#copy").is(":checked");
+            var if_crop=$("#crop").is(":checked");
             var if_display=$("#motion_vector").is(":checked");
             var w = $("#input-video-1").get(0).videoWidth;
             var h = $("#input-video-1").get(0).videoHeight;
@@ -436,11 +447,12 @@ var effects = {
             var ctx2 = canvas2.getContext('2d', { willReadFrequently: true });
             var dx = motionVectors[idx].x;
             var dy = motionVectors[idx].y;
-            if (idx==0){
-                outputFramesBuffer[0]=input1FramesBuffer[0];
-                finishFrame();
+            if(if_crop){
+                var canvas3 = getCanvas(w+new_right-new_left, h+new_bottom-new_top);
+                var ctx3 = canvas3.getContext('2d', { willReadFrequently: true });
             }
-            else if(if_copy){
+
+            if(if_copy){
                 var img_prev = new Image();
                 var img_cur = new Image();
                 
@@ -457,6 +469,17 @@ var effects = {
                 }
                 img_prev.src = input1FramesBuffer[idx-1];
                 
+            }
+            else if(if_crop){
+                var img = new Image();
+                img.onload = function() {
+                    ctx2.drawImage(img, 0, 0);
+                    var img_data = ctx2.getImageData(0, 0, w, h);
+                    ctx3.putImageData(img_data, dx-new_left, dy-new_top);
+                    outputFramesBuffer[idx] = canvas3.toDataURL("image/webp");
+                    finishFrame();
+                };
+                img.src = input1FramesBuffer[idx];     
             }
             else{        
                 var img = new Image();
