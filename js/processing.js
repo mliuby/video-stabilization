@@ -144,6 +144,36 @@ function getPixelValue(imageData, x, y, h, w) {
     return (R + G + B) / 3;
 }
 
+function drawArrow(ctx, x, y, a, b) {
+    var arrowSize = 10; // Size of the arrowhead
+    var startX = x; // Starting point of the arrow
+    var startY = y;
+    var magnitude = Math.hypot(a, b);
+    var endX = startX + (a / magnitude) * 30;
+    var endY = startY + (b / magnitude) * 30;
+  
+    ctx.strokeStyle = '#f00'; // Set the stroke color to red
+    ctx.lineWidth = 5; // Set the line width
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+  
+    ctx.fillStyle = '#f00'; // Set the fill color to red
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - (arrowSize * a / magnitude) + (arrowSize * b / magnitude),
+      endY - (arrowSize * b / magnitude) - (arrowSize * a / magnitude)
+    );
+    ctx.lineTo(
+      endX - (arrowSize * a / magnitude) - (arrowSize * b / magnitude),
+      endY - (arrowSize * b / magnitude) + (arrowSize * a / magnitude)
+    );
+    ctx.lineTo(endX, endY);
+    ctx.fill();
+}
+
 var effects = {
     reverse: {
         setup: function() {
@@ -462,6 +492,9 @@ var effects = {
                         ctx2.drawImage(img_prev, 0, 0);
                         var imageData_prev = ctx2.getImageData(0, 0, w, h);
                         ctx1.putImageData(imageData_prev, dx, dy);
+                        if(if_display){
+                            drawArrow(ctx1, w/2+dx, h/2+dy, dx, dy)
+                        }
                         outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
                         finishFrame();
                     };
@@ -476,6 +509,9 @@ var effects = {
                     ctx2.drawImage(img, 0, 0);
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx3.putImageData(img_data, dx-new_left, dy-new_top);
+                    if(if_display){
+                        drawArrow(ctx3, w/2+dx, h/2+dy, dx, dy)
+                    }
                     outputFramesBuffer[idx] = canvas3.toDataURL("image/webp");
                     finishFrame();
                 };
@@ -487,6 +523,9 @@ var effects = {
                     ctx2.drawImage(img, 0, 0);
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx1.putImageData(img_data, dx, dy);
+                    if(if_display){
+                        drawArrow(ctx1, w/2+dx, h/2+dy, dx, dy)
+                    }
                     outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
                     finishFrame();
                 };
