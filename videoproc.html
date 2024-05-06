@@ -194,9 +194,9 @@
                         <div class="container-fluid px-0">
                             <div class="row">
                                 <div class="col">
-                                    <label for="stabilization-blocks">Number of blocks tracked</label>
+                                    <label for="stabilization-blocks">Block Size</label>
                                     <div class="input-group">
-                                        <input class="form-control" id="stabilization-blocks" type="number" value="5" min="1" step="1">
+                                        <input class="form-control" id="stabilization-blocks" type="number" value="100" min="1" step="1">
                                         <div class="input-group-append"><span class="input-group-text">blocks</span></div>
                                     </div>
                                 </div>
@@ -205,7 +205,7 @@
                                 <div class="col mt-2">
                                     <label for="stabilization-smoothen-steps">Number of smoothen steps for smoothen filter</label>
                                     <div class="input-group">
-                                        <input class="form-control" id="stabilization-smoothen-steps" type="number" value="3" min="1" step="1">
+                                        <input class="form-control" id="stabilization-smoothen-steps" type="number" value="10" min="1" step="1">
                                         <div class="input-group-append"><span class="input-group-text">frames</span></div>
                                     </div>
                                 </div>
@@ -216,6 +216,15 @@
                                         <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="copy">
                                         <label class="form-check-label" for="copy">Yes</label>
+                                        </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col mt-3">
+                                    <p>whether to crop the video</p>
+                                        <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="crop">
+                                        <label class="form-check-label" for="crop">Yes</label>
                                         </div>
                                 </div>
                             </div>
