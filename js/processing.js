@@ -4,12 +4,11 @@ var outputDuration = 0; // The duration of the output video
 var outputFramesBuffer = []; // The frames buffer for the output video
 var currentFrame = 0; // The current frame being processed
 var completedFrames = 0; // The number of completed frames
-var num_blocks=5;
-var num_steps=3;
-var if_copy=false;
-var if_display=false;
+var current = 0; // The current frame when processing motion vectors
+var completed = 0; 
+var motionVectors = [];
+var smoothened_vectors = [];
 
-// This function starts the processing of an individual frame.
 function processFrame() {
     if (currentFrame < outputDuration) {
         currentEffect.process(currentFrame);
@@ -17,10 +16,13 @@ function processFrame() {
     }
 }
 
-// This function is called when an individual frame is finished.
-// If all frames are completed, it takes the frames stored in the
-// `outputFramesBuffer` and builds a video. The video is then set as the 'src'
-// of the <video id='output-video'></video>.
+function processVectors() {
+    if (current < outputDuration) {
+        currentEffect.getmotionVectors(current);
+        current++;
+    }
+}
+
 function finishFrame() {
     completedFrames++;
     if (completedFrames < outputDuration) {
@@ -42,14 +44,96 @@ function finishFrame() {
     }
 }
 
-// Definition of various video effects
-//
-// `effects` is an object with unlimited number of members.
-// Each member of `effects` represents an effect.
-// Each effect is an object, with two member functions:
-// - setup() which responsible for gathering different parameters
-//           of that effect and preparing the output buffer
-// - process() which responsible for processing of individual frame
+function finishVectors() {
+    
+    completed++;
+    if (completed < outputDuration) {
+        updateProgressBar("#effect-progress", completed / outputDuration * 100);
+
+        if (stopProcessingFlag) {
+            stopProcessingFlag = false;
+            $("#progress-modal").modal("hide");
+        } else {
+            setTimeout(processVectors, 1);
+        }
+    }
+    else {
+        
+        var num_steps=parseInt($("#stabilization-smoothen-steps").val());
+        for (var i=1; i<motionVectors.length; i++){ // global path
+            motionVectors[i].x+=motionVectors[i-1].x;
+            motionVectors[i].y+=motionVectors[i-1].y;
+        }
+        // console.log(motionVectors);
+
+        for (let i = 0; i < motionVectors.length; i++) { // smoothen
+            const start = Math.max(0, i - num_steps);
+            var sum_x = 0;
+            var sum_y = 0;           
+            for (let j = start; j <= i; j++) {
+                sum_x += motionVectors[j].x;
+                sum_y += motionVectors[j].y;
+            }
+        
+            var average_x = sum_x / (i - start + 1);
+            var average_y = sum_y / (i - start + 1);
+            smoothened_vectors[i]={x:average_x, y:average_y};
+        }
+        for (var i=0; i<motionVectors.length; ++i){
+            motionVectors[i].x=parseInt(smoothened_vectors[i].x-motionVectors[i].x);
+            motionVectors[i].y=parseInt(smoothened_vectors[i].y-motionVectors[i].y);
+        }
+        // console.log(smoothened_vectors);
+        // console.log(motionVectors);
+        currentFrame = 0;
+        completedFrames = 0;
+        processFrame();
+    }
+}
+
+
+// track motion vectors  between frames
+function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize, stride, h, w) {
+    let motionVector = { x: 0, y: 0 };
+    let min = Infinity;
+    var temp={ x: 0, y: 0 };
+    var num_block=0;
+    var x=Math.floor((w-blockSize)/2)
+    var y=Math.floor((h-blockSize)/2)
+    min=Infinity;
+    num_block+=1;
+    for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
+        for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
+            var sum = 0;
+            if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
+                continue;
+            for (var bx = 0; bx < blockSize; bx++) {
+                for (var by = 0; by < blockSize; by++) {
+                    var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
+                    var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
+                    sum += Math.pow(referencePixel - searchPixel, 2);
+                }
+            }
+            if (sum < min) {
+                min = sum;
+                motionVector.x=i;
+                motionVector.y=j;
+            }
+        }
+    }    
+    console.log(motionVector.x,motionVector.y)
+    return motionVector;
+}
+
+function getPixelValue(imageData, x, y, h, w) {
+    var numChannels = 4; // Assuming RGB color model
+    var index = (y * w + x) * numChannels;
+    var R = imageData.data[index];
+    var G = imageData.data[index + 1];
+    var B = imageData.data[index + 2];
+    return (R + G + B) / 3;
+}
+
 var effects = {
     reverse: {
         setup: function() {
@@ -226,7 +310,7 @@ var effects = {
             var img = new Image();
             img.onload = function() {
             
-
+                
                 /*
                  * TODO: Draw the input frame appropriately
                  */
@@ -302,17 +386,90 @@ var effects = {
     stabilization:{
         setup: function() {
             outputDuration=input1FramesBuffer.length;
-            num_blocks=parseInt($("#stabilization-blocks").val());
-            num_steps=parseInt($("#stabilization-smoothen-steps").val());
-            if_copy=$("#copy").is(":checked");
-            if_display=$("#motion_vector").is(":checked");
-            console.log(num_blocks,num_steps,if_copy,if_display);
+            outputFramesBuffer = new Array(outputDuration);
+            motionVectors = new Array(outputDuration);
+            smoothened_vectors = new Array(outputDuration);
             
         },
+        getmotionVectors: function(i) {
+            if(i==0){
+                motionVectors[0]={ x: 0, y: 0 };
+                finishVectors();  
+            }
+            else{
+                var blockSize=parseInt($("#stabilization-blocks").val());       
+                var searchAreaSize = 100;
+                var stride = 5;         
+
+                var w = $("#input-video-1").get(0).videoWidth;
+                var h = $("#input-video-1").get(0).videoHeight;
+                var canvas = getCanvas(w, h);
+                var ctx = canvas.getContext('2d',{ willReadFrequently: true });
+
+                var img_ref = new Image();
+                var img_search = new Image();
+                img_ref.onload = function () {
+                    ctx.drawImage(img_ref, 0, 0);
+                    var imageData_ref = ctx.getImageData(0, 0, w, h);   
+                    img_search.onload = function () {
+                        ctx.drawImage(img_search, 0, 0);
+                        var imageData_search = ctx.getImageData(0, 0, w, h);
+                        motionVectors[i]=motionEstimation(imageData_ref, imageData_search, blockSize, searchAreaSize, stride, h, w);
+                        finishVectors();    
+                    };
+                    img_search.src = input1FramesBuffer[i];
+                };
+                img_ref.src = input1FramesBuffer[i-1];
+            }
+
+        },
+
         process: function(idx) {
-            outputFramesBuffer[idx]=input1FramesBuffer[idx];
-            finishFrame();
-        }  
+            // Use a canvas to store frame content
+            var if_copy=$("#copy").is(":checked");
+            var if_display=$("#motion_vector").is(":checked");
+            var w = $("#input-video-1").get(0).videoWidth;
+            var h = $("#input-video-1").get(0).videoHeight;
+            var canvas1 = getCanvas(w, h);
+            var canvas2 = getCanvas(w, h);
+            var ctx1 = canvas1.getContext('2d', { willReadFrequently: true });
+            var ctx2 = canvas2.getContext('2d', { willReadFrequently: true });
+            var dx = motionVectors[idx].x;
+            var dy = motionVectors[idx].y;
+            if (idx==0){
+                outputFramesBuffer[0]=input1FramesBuffer[0];
+                finishFrame();
+            }
+            else if(if_copy){
+                var img_prev = new Image();
+                var img_cur = new Image();
+                
+                img_prev.onload = function () {
+                    ctx1.drawImage(img_prev, 0, 0);
+                    img_cur.onload = function () {
+                        ctx2.drawImage(img_prev, 0, 0);
+                        var imageData_prev = ctx2.getImageData(0, 0, w, h);
+                        ctx1.putImageData(imageData_prev, dx, dy);
+                        outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
+                        finishFrame();
+                    };
+                    img_cur.src = input1FramesBuffer[idx];
+                }
+                img_prev.src = input1FramesBuffer[idx-1];
+                
+            }
+            else{        
+                var img = new Image();
+                img.onload = function() {
+                    ctx2.drawImage(img, 0, 0);
+                    var img_data = ctx2.getImageData(0, 0, w, h);
+                    ctx1.putImageData(img_data, dx, dy);
+                    outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
+                    finishFrame();
+                };
+                img.src = input1FramesBuffer[idx];          
+            }
+        }
 
     }
 }
@@ -350,9 +507,16 @@ function applyEffect(e) {
 
     // Set up the effect
     currentEffect.setup();
+    if(selectedEffect=="stabilization"){
+        current = 0;
+        completed = 0;
+        processVectors();
 
+    }
+    else{  
     // Start processing the frames
     currentFrame = 0;
     completedFrames = 0;
     processFrame();
+    }
 }
