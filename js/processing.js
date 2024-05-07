@@ -93,6 +93,7 @@ function finishVectors() {
             new_bottom=(motionVectors[i].y<0 && motionVectors[i].y<new_bottom)?motionVectors[i].y:new_bottom;
 
         }
+
         currentFrame = 0;
         completedFrames = 0;
         processFrame();
@@ -102,6 +103,8 @@ function finishVectors() {
 
 // track motion vectors  between frames
 function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize, stride, h, w) {
+    var density = 3;
+    var density = $("input[name='density']:checked").val();
     let motionVector = { x: 0, y: 0 };
     let otherVector = [];
     var x=Math.floor((w-blockSize)/2);
@@ -120,40 +123,41 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
                 }
             }
             if (sum < min) {
-                min=sum;
+                min = sum;
                 motionVector.x=i;
                 motionVector.y=j;
             }
         }
     }
-    var xs = [Math.floor((w-3*blockSize)/2), Math.floor((w+blockSize)/2), Math.floor((w-3*blockSize)/2), Math.floor((w+blockSize)/2)];
-    var ys = [Math.floor((h-3*blockSize)/2), Math.floor((h-3*blockSize)/2), Math.floor((h+blockSize)/2), Math.floor((h+blockSize)/2)];
-    for (var k=0;k<4;k++){
-        var x = xs[k];
-        var y = ys[k];
-        let min = Infinity;
-        var tempt;
-        for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
-            for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
-                var sum = 0;
-                if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
-                    continue;
-                for (var bx = 0; bx < blockSize; bx++) {
-                    for (var by = 0; by < blockSize; by++) {
-                        var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
-                        var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
-                        sum += Math.pow(referencePixel - searchPixel, 2);
+    // var xs = [Math.floor((w-3*blockSize)/2), Math.floor((w+blockSize)/2), Math.floor((w-3*blockSize)/2), Math.floor((w+blockSize)/2)];
+    // var ys = [Math.floor((h-3*blockSize)/2), Math.floor((h-3*blockSize)/2), Math.floor((h+blockSize)/2), Math.floor((h+blockSize)/2)];
+    for (var x = 0; x + blockSize < w; x += density*blockSize) {
+        for (var y = 0; y + blockSize < h; y += density*blockSize) {
+            // var x = xs[k];
+            // var y = ys[k];
+            let min = Infinity;
+            var tempt={x:0,y:0};
+            for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
+                for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
+                    var sum = 0;
+                    if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
+                        continue;
+                    for (var bx = 0; bx < blockSize; bx++) {
+                        for (var by = 0; by < blockSize; by++) {
+                            var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
+                            var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
+                            sum += Math.pow(referencePixel - searchPixel, 2);
+                        }
+                    }
+                    if (sum < min) {
+                        min = sum;
+                        tempt = {x:i,y:j};
                     }
                 }
-                if (sum < min) {
-                    min = sum;
-                    tempt = {x:i,y:j};
-                }
             }
+            otherVector.push(tempt);
         }
-        otherVector.push(tempt);
     }
-    // console.log("otherVector" ,otherVector);
     return [motionVector, otherVector];
 }
 
@@ -457,14 +461,21 @@ var effects = {
             }       
         },
         getmotionVectors: function(i) {
+            var density = 3;
+            var density = $("input[name='density']:checked").val();
+            var w = $("#input-video-1").get(0).videoWidth;
+            var h = $("#input-video-1").get(0).videoHeight;
+            var blockSize=parseInt($("#stabilization-blocks").val());  
             if(i==0){
                 motionVectors[0]={ x: 0, y: 0 };
-                for (var k=0;k<4;k++)
-                    otherVectors[0].push({x:0 , y:0});
+                for (var x = 0; x + blockSize < w; x += density*blockSize) {
+                    for (var y = 0; y + blockSize < h; y += density*blockSize) {
+                        otherVectors[0].push({x:0 , y:0});
+                    }
+                }
                 finishVectors();  
             }
-            else{
-                var blockSize=parseInt($("#stabilization-blocks").val());       
+            else{     
                 var searchAreaSize = 50;
                 var stride = 5;         
 
@@ -498,6 +509,7 @@ var effects = {
             var if_copy=$("#copy").is(":checked");
             var if_crop=$("#crop").is(":checked");
             var if_display=$("#motion_vector").is(":checked");
+            var density = $("input[name='density']:checked").val();
             var blockSize=parseInt($("#stabilization-blocks").val());       
             var w = $("#input-video-1").get(0).videoWidth;
             var h = $("#input-video-1").get(0).videoHeight;
@@ -507,42 +519,45 @@ var effects = {
             var ctx2 = canvas2.getContext('2d', { willReadFrequently: true });
             var dx = motionVectors[idx].x;
             var dy = motionVectors[idx].y;
-            var xs = [Math.floor((w-2*blockSize)/2), Math.floor((w+2*blockSize)/2), Math.floor((w-2*blockSize)/2), Math.floor((w+2*blockSize)/2)];
-            var ys = [Math.floor((h-2*blockSize)/2), Math.floor((h-2*blockSize)/2), Math.floor((h+2*blockSize)/2), Math.floor((h+2*blockSize)/2)];
-        
+            
             if(if_crop){
                 var canvas3 = getCanvas(w+new_right-new_left, h+new_bottom-new_top);
                 var ctx3 = canvas3.getContext('2d', { willReadFrequently: true });
             }
-            if (idx==0 && !if_crop){
-                outputFramesBuffer[0]=input1FramesBuffer[0];
-                finishFrame();
-            }
-            else if(if_copy){
-                var img_prev = new Image();
-                var img_cur = new Image();
-                
-                img_prev.onload = function () {
-                    ctx1.drawImage(img_prev, 0, 0);
-                    img_cur.onload = function () {
-                        ctx2.drawImage(img_prev, 0, 0);
-                        var imageData_prev = ctx2.getImageData(0, 0, w, h);
-                        ctx1.putImageData(imageData_prev, dx, dy);
-                        if(if_display){
-                            drawArrow(ctx1, w/2+dx, h/2+dy, -dx, -dy)
-                            for(var k=0;k<4;k++){
-                                var dxk=otherVectors[idx][k].x;
-                                var dyk=otherVectors[idx][k].y;
-                                drawArrow(ctx1, xs[k]+dx, ys[k]+dy, dxk, dyk);
-                            }
-                        }
-                        outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
-                        finishFrame();
-                    };
-                    img_cur.src = input1FramesBuffer[idx];
+
+            if(if_copy){
+                if (idx==0){
+                    outputFramesBuffer[0]=input1FramesBuffer[0];
+                    finishFrame();
                 }
-                img_prev.src = input1FramesBuffer[idx-1];
-                
+                else{
+                    var img_prev = new Image();
+                    var img_cur = new Image();
+                    
+                    img_prev.onload = function () {
+                        ctx1.drawImage(img_prev, 0, 0);
+                        img_cur.onload = function () {
+                            ctx2.drawImage(img_prev, 0, 0);
+                            var imageData_prev = ctx2.getImageData(0, 0, w, h);
+                            ctx1.putImageData(imageData_prev, dx, dy);
+                            if(if_display){
+                                var order=0;
+                                for (var x = 0; x + blockSize < w; x += density*blockSize) {
+                                    for (var y = 0; y + blockSize < h; y += density*blockSize) {
+                                        var dxk=otherVectors[idx][order].x;
+                                        var dyk=otherVectors[idx][order].y;
+                                        drawArrow(ctx1, x+blockSize/2+dx, y+blockSize/2+dy, dxk, dyk);
+                                        order++;
+                                    }
+                                }
+                            }
+                            outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
+                            finishFrame();
+                        };
+                        img_cur.src = input1FramesBuffer[idx];
+                    }
+                    img_prev.src = input1FramesBuffer[idx-1];
+                }    
             }
             else if(if_crop){
                 var img = new Image();
@@ -551,11 +566,14 @@ var effects = {
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx3.putImageData(img_data, dx-new_left, dy-new_top);
                     if(if_display){
-                        drawArrow(ctx3, w/2+dx, h/2+dy, -dx, -dy);
-                        for(var k=0;k<4;k++){
-                            var dxk=otherVectors[idx][k].x;
-                            var dyk=otherVectors[idx][k].y;
-                            drawArrow(ctx3, xs[k]+dx, ys[k]+dy, dxk, dyk);
+                        var order=0;
+                        for (var x = 0; x + blockSize < w; x += density*blockSize) {
+                            for (var y = 0; y + blockSize < h; y += density*blockSize) {
+                                var dxk=otherVectors[idx][order].x;
+                                var dyk=otherVectors[idx][order].y;
+                                drawArrow(ctx3, x+blockSize/2+dx, y+blockSize/2+dy, dxk, dyk);
+                                order++;
+                            }
                         }
                     }
                     outputFramesBuffer[idx] = canvas3.toDataURL("image/webp");
@@ -570,11 +588,14 @@ var effects = {
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx1.putImageData(img_data, dx, dy);
                     if(if_display){
-                        drawArrow(ctx1, w/2+dx, h/2+dy, -dx, -dy);
-                        for(var k=0;k<4;k++){
-                            var dxk=otherVectors[idx][k].x;
-                            var dyk=otherVectors[idx][k].y;
-                            drawArrow(ctx1, xs[k]+dx, ys[k]+dy, dxk, dyk);
+                        var order=0;
+                        for (var x = 0; x + blockSize < w; x += density*blockSize) {
+                            for (var y = 0; y + blockSize < h; y += density*blockSize) {
+                                var dxk=otherVectors[idx][order].x;
+                                var dyk=otherVectors[idx][order].y;
+                                drawArrow(ctx1, x+blockSize/2+dx, y+blockSize/2+dy, dxk, dyk);
+                                order++;
+                            }
                         }
                     }
                     outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
