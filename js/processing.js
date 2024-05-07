@@ -7,6 +7,7 @@ var completedFrames = 0; // The number of completed frames
 var current = 0; // The current frame when processing motion vectors
 var completed = 0; 
 var motionVectors = [];
+var otherVectors = [];
 var smoothened_vectors = [];
 var new_left=0;
 var new_right=0;
@@ -68,7 +69,6 @@ function finishVectors() {
             motionVectors[i].x+=motionVectors[i-1].x;
             motionVectors[i].y+=motionVectors[i-1].y;
         }
-        // console.log(motionVectors);
 
         for (let i = 0; i < motionVectors.length; i++) { // smoothen
             const start = Math.max(0, i - num_steps);
@@ -83,6 +83,7 @@ function finishVectors() {
             var average_y = sum_y / (i - start + 1);
             smoothened_vectors[i]={x:average_x, y:average_y};
         }
+        
         for (var i=0; i<motionVectors.length; ++i){
             motionVectors[i].x=parseInt(smoothened_vectors[i].x-motionVectors[i].x);
             motionVectors[i].y=parseInt(smoothened_vectors[i].y-motionVectors[i].y);
@@ -92,9 +93,12 @@ function finishVectors() {
             new_bottom=(motionVectors[i].y<0 && motionVectors[i].y<new_bottom)?motionVectors[i].y:new_bottom;
 
         }
-        // console.log(smoothened_vectors);
-        // console.log(motionVectors);\
-        // console.log(new_left,new_right,new_bottom,new_top)
+        for (var i=0; i<otherVectors.length;++i){
+            for (var k=0;k<4;k++){
+                otherVectors[i][k].x+=motionVectors[i].x;
+                otherVectors[i][k].y+=motionVectors[i].y;
+            }
+        }
         currentFrame = 0;
         completedFrames = 0;
         processFrame();
@@ -105,13 +109,11 @@ function finishVectors() {
 // track motion vectors  between frames
 function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize, stride, h, w) {
     let motionVector = { x: 0, y: 0 };
+    let otherVector = [];
+    var x=Math.floor((w-blockSize)/2);
+    var y=Math.floor((h-blockSize)/2);
     let min = Infinity;
-    var temp={ x: 0, y: 0 };
-    var num_block=0;
-    var x=Math.floor((w-blockSize)/2)
-    var y=Math.floor((h-blockSize)/2)
-    min=Infinity;
-    num_block+=1;
+    var count = 0;
     for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
         for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
             var sum = 0;
@@ -122,17 +124,47 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
                     var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
                     var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
                     sum += Math.pow(referencePixel - searchPixel, 2);
+                    count++;
                 }
             }
-            if (sum < min) {
-                min = sum;
+            if (sum/count < min) {
+                min = sum/count;
                 motionVector.x=i;
                 motionVector.y=j;
             }
         }
-    }    
-    console.log(motionVector.x,motionVector.y)
-    return motionVector;
+    }
+    var xs = [Math.floor((w-3*blockSize)/2), Math.floor((w+blockSize)/2), Math.floor((w-3*blockSize)/2), Math.floor((w+blockSize)/2)];
+    var ys = [Math.floor((h-3*blockSize)/2), Math.floor((h-3*blockSize)/2), Math.floor((h+blockSize)/2), Math.floor((h+blockSize)/2)];
+    for (var k=0;k<4;k++){
+        var x = xs[k];
+        var y = ys[k];
+        let min = Infinity;
+        var count = 0;
+        var tempt;
+        for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
+            for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
+                var sum = 0;
+                if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
+                    continue;
+                for (var bx = 0; bx < blockSize; bx++) {
+                    for (var by = 0; by < blockSize; by++) {
+                        var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
+                        var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
+                        sum += Math.pow(referencePixel - searchPixel, 2);
+                        count++;
+                    }
+                }
+                if (sum/count < min) {
+                    min = sum/count;
+                    tempt = {x:i,y:j};
+                }
+            }
+        }
+        otherVector.push(tempt);
+    }
+    console.log("otherVector" ,otherVector);
+    return [motionVector, otherVector];
 }
 
 function getPixelValue(imageData, x, y, h, w) {
@@ -429,11 +461,16 @@ var effects = {
             outputFramesBuffer = new Array(outputDuration);
             motionVectors = new Array(outputDuration);
             smoothened_vectors = new Array(outputDuration);
-            
+            otherVectors = new Array(outputDuration); 
+            for (var i = 0; i < outputDuration; i++) {
+                otherVectors[i] = []; 
+            }       
         },
         getmotionVectors: function(i) {
             if(i==0){
                 motionVectors[0]={ x: 0, y: 0 };
+                for (var k=0;k<4;k++)
+                    otherVectors[0].push({x:0 , y:0});
                 finishVectors();  
             }
             else{
@@ -454,7 +491,9 @@ var effects = {
                     img_search.onload = function () {
                         ctx.drawImage(img_search, 0, 0);
                         var imageData_search = ctx.getImageData(0, 0, w, h);
-                        motionVectors[i]=motionEstimation(imageData_ref, imageData_search, blockSize, searchAreaSize, stride, h, w);
+                        var result = motionEstimation(imageData_ref, imageData_search, blockSize, searchAreaSize, stride, h, w);
+                        motionVectors[i]=result[0];
+                        otherVectors[i]=result[1];
                         finishVectors();    
                     };
                     img_search.src = input1FramesBuffer[i];
@@ -469,6 +508,7 @@ var effects = {
             var if_copy=$("#copy").is(":checked");
             var if_crop=$("#crop").is(":checked");
             var if_display=$("#motion_vector").is(":checked");
+            var blockSize=parseInt($("#stabilization-blocks").val());       
             var w = $("#input-video-1").get(0).videoWidth;
             var h = $("#input-video-1").get(0).videoHeight;
             var canvas1 = getCanvas(w, h);
@@ -477,6 +517,9 @@ var effects = {
             var ctx2 = canvas2.getContext('2d', { willReadFrequently: true });
             var dx = motionVectors[idx].x;
             var dy = motionVectors[idx].y;
+            var xs = [Math.floor((w-2*blockSize)/2), Math.floor((w+2*blockSize)/2), Math.floor((w-2*blockSize)/2), Math.floor((w+2*blockSize)/2)];
+            var ys = [Math.floor((h-2*blockSize)/2), Math.floor((h-2*blockSize)/2), Math.floor((h+2*blockSize)/2), Math.floor((h+2*blockSize)/2)];
+        
             if(if_crop){
                 var canvas3 = getCanvas(w+new_right-new_left, h+new_bottom-new_top);
                 var ctx3 = canvas3.getContext('2d', { willReadFrequently: true });
@@ -494,6 +537,11 @@ var effects = {
                         ctx1.putImageData(imageData_prev, dx, dy);
                         if(if_display){
                             drawArrow(ctx1, w/2+dx, h/2+dy, dx, dy)
+                            for(var k=0;k<4;k++){
+                                var dxk=otherVectors[idx][k].x;
+                                var dyk=otherVectors[idx][k].y;
+                                drawArrow(ctx1, xs[k]+dx, ys[k]+dy, dxk, dyk);
+                            }
                         }
                         outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
                         finishFrame();
@@ -510,7 +558,12 @@ var effects = {
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx3.putImageData(img_data, dx-new_left, dy-new_top);
                     if(if_display){
-                        drawArrow(ctx3, w/2+dx, h/2+dy, dx, dy)
+                        drawArrow(ctx3, w/2+dx, h/2+dy, dx, dy);
+                        for(var k=0;k<4;k++){
+                            var dxk=otherVectors[idx][k].x;
+                            var dyk=otherVectors[idx][k].y;
+                            drawArrow(ctx1, xs[k]+dx, ys[k]+dy, dxk, dyk);
+                        }
                     }
                     outputFramesBuffer[idx] = canvas3.toDataURL("image/webp");
                     finishFrame();
@@ -524,7 +577,12 @@ var effects = {
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx1.putImageData(img_data, dx, dy);
                     if(if_display){
-                        drawArrow(ctx1, w/2+dx, h/2+dy, dx, dy)
+                        drawArrow(ctx1, w/2+dx, h/2+dy, dx, dy);
+                        for(var k=0;k<4;k++){
+                            var dxk=otherVectors[idx][k].x;
+                            var dyk=otherVectors[idx][k].y;
+                            drawArrow(ctx1, xs[k]+dx, ys[k]+dy, dxk, dyk);
+                        }
                     }
                     outputFramesBuffer[idx] = canvas1.toDataURL("image/webp");
                     finishFrame();
