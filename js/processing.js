@@ -93,12 +93,6 @@ function finishVectors() {
             new_bottom=(motionVectors[i].y<0 && motionVectors[i].y<new_bottom)?motionVectors[i].y:new_bottom;
 
         }
-        for (var i=0; i<otherVectors.length;++i){
-            for (var k=0;k<4;k++){
-                otherVectors[i][k].x+=motionVectors[i].x;
-                otherVectors[i][k].y+=motionVectors[i].y;
-            }
-        }
         currentFrame = 0;
         completedFrames = 0;
         processFrame();
@@ -113,7 +107,6 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
     var x=Math.floor((w-blockSize)/2);
     var y=Math.floor((h-blockSize)/2);
     let min = Infinity;
-    var count = 0;
     for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
         for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
             var sum = 0;
@@ -124,11 +117,10 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
                     var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
                     var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
                     sum += Math.pow(referencePixel - searchPixel, 2);
-                    count++;
                 }
             }
-            if (sum/count < min) {
-                min = sum/count;
+            if (sum < min) {
+                min=sum;
                 motionVector.x=i;
                 motionVector.y=j;
             }
@@ -140,7 +132,6 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
         var x = xs[k];
         var y = ys[k];
         let min = Infinity;
-        var count = 0;
         var tempt;
         for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
             for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
@@ -152,18 +143,17 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
                         var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
                         var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
                         sum += Math.pow(referencePixel - searchPixel, 2);
-                        count++;
                     }
                 }
-                if (sum/count < min) {
-                    min = sum/count;
+                if (sum < min) {
+                    min = sum;
                     tempt = {x:i,y:j};
                 }
             }
         }
         otherVector.push(tempt);
     }
-    console.log("otherVector" ,otherVector);
+    // console.log("otherVector" ,otherVector);
     return [motionVector, otherVector];
 }
 
@@ -524,8 +514,11 @@ var effects = {
                 var canvas3 = getCanvas(w+new_right-new_left, h+new_bottom-new_top);
                 var ctx3 = canvas3.getContext('2d', { willReadFrequently: true });
             }
-
-            if(if_copy){
+            if (idx==0 && !if_crop){
+                outputFramesBuffer[0]=input1FramesBuffer[0];
+                finishFrame();
+            }
+            else if(if_copy){
                 var img_prev = new Image();
                 var img_cur = new Image();
                 
@@ -536,7 +529,7 @@ var effects = {
                         var imageData_prev = ctx2.getImageData(0, 0, w, h);
                         ctx1.putImageData(imageData_prev, dx, dy);
                         if(if_display){
-                            drawArrow(ctx1, w/2+dx, h/2+dy, dx, dy)
+                            drawArrow(ctx1, w/2+dx, h/2+dy, -dx, -dy)
                             for(var k=0;k<4;k++){
                                 var dxk=otherVectors[idx][k].x;
                                 var dyk=otherVectors[idx][k].y;
@@ -558,11 +551,11 @@ var effects = {
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx3.putImageData(img_data, dx-new_left, dy-new_top);
                     if(if_display){
-                        drawArrow(ctx3, w/2+dx, h/2+dy, dx, dy);
+                        drawArrow(ctx3, w/2+dx, h/2+dy, -dx, -dy);
                         for(var k=0;k<4;k++){
                             var dxk=otherVectors[idx][k].x;
                             var dyk=otherVectors[idx][k].y;
-                            drawArrow(ctx1, xs[k]+dx, ys[k]+dy, dxk, dyk);
+                            drawArrow(ctx3, xs[k]+dx, ys[k]+dy, dxk, dyk);
                         }
                     }
                     outputFramesBuffer[idx] = canvas3.toDataURL("image/webp");
@@ -577,7 +570,7 @@ var effects = {
                     var img_data = ctx2.getImageData(0, 0, w, h);
                     ctx1.putImageData(img_data, dx, dy);
                     if(if_display){
-                        drawArrow(ctx1, w/2+dx, h/2+dy, dx, dy);
+                        drawArrow(ctx1, w/2+dx, h/2+dy, -dx, -dy);
                         for(var k=0;k<4;k++){
                             var dxk=otherVectors[idx][k].x;
                             var dyk=otherVectors[idx][k].y;
