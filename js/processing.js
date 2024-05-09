@@ -110,20 +110,23 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
     var x=Math.floor((w-blockSize)/2);
     var y=Math.floor((h-blockSize)/2);
     let min = Infinity;
+    var count=0;
     for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
         for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
             var sum = 0;
-            if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
-                continue;
+            count=0;
             for (var bx = 0; bx < blockSize; bx++) {
                 for (var by = 0; by < blockSize; by++) {
+                    if (x + i - bx < 0 || x + i + bx >= w || y + j - by < 0 || y + j + by >= h)
+                        continue;
                     var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
                     var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
                     sum += Math.pow(referencePixel - searchPixel, 2);
+                    count++
                 }
             }
-            if (sum < min) {
-                min = sum;
+            if (sum/count < min) {
+                min = sum/count;
                 motionVector.x=i;
                 motionVector.y=j;
             }
@@ -140,17 +143,19 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
             for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
                 for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
                     var sum = 0;
-                    if (x + i - blockSize < 0 || x + i + blockSize >= w || y + j - blockSize < 0 || y + j + blockSize >= h)
-                        continue;
+                    count=0;
                     for (var bx = 0; bx < blockSize; bx++) {
                         for (var by = 0; by < blockSize; by++) {
+                            if (x + i - bx < 0 || x + i + bx >= w || y + j - by < 0 || y + j + by >= h)
+                                continue;
                             var referencePixel = getPixelValue(referenceFrame, x + bx, y + by, h, w);
                             var searchPixel = getPixelValue(searchFrame, x + i + bx, y + j + by, h, w);
                             sum += Math.pow(referencePixel - searchPixel, 2);
+                            count++
                         }
                     }
-                    if (sum < min) {
-                        min = sum;
+                    if (sum/count < min) {
+                        min = sum/count;
                         tempt = {x:i,y:j};
                     }
                 }
