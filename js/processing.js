@@ -546,7 +546,7 @@ var effects = {
                                     for (var y = 0; y + blockSize < h; y += density*blockSize) {
                                         var dxk=otherVectors[idx][order].x;
                                         var dyk=otherVectors[idx][order].y;
-                                        drawArrow(ctx1, x+blockSize/2+dx, y+blockSize/2+dy, dxk, dyk);
+                                        drawArrow(ctx1, x-blockSize/2+dx, y-blockSize/2+dy, dxk, dyk);
                                         order++;
                                     }
                                 }
@@ -571,7 +571,7 @@ var effects = {
                             for (var y = 0; y + blockSize < h; y += density*blockSize) {
                                 var dxk=otherVectors[idx][order].x;
                                 var dyk=otherVectors[idx][order].y;
-                                drawArrow(ctx3, x+blockSize/2+dx, y+blockSize/2+dy, dxk, dyk);
+                                drawArrow(ctx3, x-blockSize/2+dx, y-blockSize/2+dy, dxk, dyk);
                                 order++;
                             }
                         }
@@ -593,7 +593,7 @@ var effects = {
                             for (var y = 0; y + blockSize < h; y += density*blockSize) {
                                 var dxk=otherVectors[idx][order].x;
                                 var dyk=otherVectors[idx][order].y;
-                                drawArrow(ctx1, x+blockSize/2+dx, y+blockSize/2+dy, dxk, dyk);
+                                drawArrow(ctx1, x-blockSize/2+dx, y-blockSize/2+dy, dxk, dyk);
                                 order++;
                             }
                         }
