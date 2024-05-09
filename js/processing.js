@@ -111,6 +111,10 @@ function motionEstimation(referenceFrame, searchFrame, blockSize, searchAreaSize
     var y=Math.floor((h-blockSize)/2);
     let min = Infinity;
     var count=0;
+    if (blockSize>Math.min(h,w))
+    {
+        blockSize=Math.min(h,w);
+    }
     for (let i = -searchAreaSize; i <= searchAreaSize; i += stride) {
         for (let j = -searchAreaSize; j <= searchAreaSize; j += stride) {
             var sum = 0;
